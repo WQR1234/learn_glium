@@ -5,20 +5,21 @@ mod camera;
 
 
 use cgmath::InnerSpace;
-use glium::{implement_vertex, Display, Surface};
+use glium::{Display, Surface};
 use glium::glutin::surface::WindowSurface;
 use glium::winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
-use glium::uniforms::DynamicUniforms;
+use glium::uniforms::{DynamicUniforms};
+use object_3d::light;
 
 
-use crate::object_3d::{Object3d, Object3dKind, Vertex};
+use crate::object_3d::{Object3d, Object3dKind, Vertex, Material, light::Light};
 use crate::object_3d::cube::CUBE_SHAPE;
 use crate::object_3d::sphere::SPHERE_SHAPE_INDEX;
 use crate::camera::Camera;
 
 use glium::winit::application::ApplicationHandler;
 use glium::winit::event::{DeviceEvent, DeviceId, ElementState, KeyEvent, MouseButton, WindowEvent};
-use glium::winit::event_loop::{ActiveEventLoop, EventLoop};
+use glium::winit::event_loop::{ActiveEventLoop};
 use glium::winit::window::{Window, WindowId};
 
 use std::collections::HashMap;
@@ -29,6 +30,8 @@ struct GLBuffer {
     vertex_buffer: glium::VertexBuffer<Vertex>,
     index_buffer: Option<glium::IndexBuffer<u16>>,
 }
+
+
 
 struct State {
     window: Window,
@@ -53,10 +56,13 @@ struct State {
 
     camera: Camera,
 
-    last_mouse_pos: (f32, f32),
+    // last_mouse_pos: (f32, f32),
     camera_rotate: bool,
 
-    light_color: Option<[f32; 3]>,
+    // light_pos: Option<cgmath::Vector3<f32>>,
+    // light_color: Option<[f32; 3]>,
+
+    light: Option<Light>,
 }
 
 impl State {
@@ -96,9 +102,11 @@ impl State {
             object3ds: vec![],
             projection,
             camera: Camera::new(),
-            last_mouse_pos: (800.0/2.0, 600.0/2.0),
+            // last_mouse_pos: (800.0/2.0, 600.0/2.0),
             camera_rotate: false,
-            light_color: None,
+            // light_pos: None,
+            // light_color: None,
+            light: None,
         }
     }
 
@@ -127,7 +135,13 @@ impl State {
         self.textures.push(self.generate_texture("container.jpg"));
 
         // light
-        self.light_color = Some([1.0, 1.0, 1.0]);
+        // self.light_color = Some([1.0, 1.0, 1.0]);
+        // self.light_pos = Some(cgmath::vec3(1.2, 1.0, 2.0));
+        let light_pos = [1.2, 1.0, 2.0];
+        let light_ambient = [0.2, 0.2, 0.2];
+        let light_diffuse = [0.5, 0.5, 0.5];
+        let light_specular = [1.0, 1.0, 1.0];
+        self.light = Some(Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere));
 
         // add cubes
         self.add_objects();
@@ -136,21 +150,47 @@ impl State {
     fn get_uniforms<'a>(&'a self, object3d: &'a Object3d, view: &'a [[f32; 4]; 4]) ->  DynamicUniforms<'a, 'a>   {
         let model: &[[f32; 4]; 4]  = object3d.model.as_ref();
 
+        let camera_pos: &[f32; 3] = self.camera.pos.as_ref();
 
-        let mut uniforms = DynamicUniforms::new();
-        uniforms.add("model", model);
-        uniforms.add("view", view);
-        uniforms.add("projection", &self.projection);
+        let mut uniforms = glium::dynamic_uniform! {
+            model: model,
+            view: view,
+            projection: &self.projection,
+            viewPos: camera_pos,
+            
+        };
+
+
+        // if let Some(light_pos) = &self.light_pos {
+        //     let light_pos: &[f32; 3] = light_pos.as_ref();
+        //     uniforms.add("lightPos", light_pos);
+        // }
+        // if let Some(light_color) = &self.light_color {
+        //     uniforms.add("lightColor", light_color)
+        // }
+        if let Some(light) = &self.light {
+            uniforms.add("light.position", light.get_position());
+            uniforms.add("light.ambient", &light.ambient);
+            uniforms.add("light.diffuse", &light.diffuse);
+            uniforms.add("light.specular", &light.specular);
+        }
+        
 
         if let Some(texture_id) = object3d.texture_id {
             uniforms.add("tex", &self.textures[texture_id]);
         }
 
-        if let Some(light_color) = &self.light_color {
-            uniforms.add("lightColor", light_color)
-        }
+        
         if let Some(color) = &object3d.color {
             uniforms.add("objectColor", color);
+        }
+
+        if let Some(material) = &object3d.material {
+            uniforms.add("material.ambient", &material.ambient);
+            uniforms.add("material.diffuse", &material.diffuse);
+            uniforms.add("material.specular", &material.specular);
+            uniforms.add("material.shininess", &material.shininess);    
+
         }
 
         uniforms
@@ -183,7 +223,7 @@ impl State {
         self.last_frame = current_frame;
 
         let mut frame = self.display.draw();
-        frame.clear_color_and_depth((0.2, 0.3, 0.3, 1.0), 1.0);
+        frame.clear_color_and_depth((0.1, 0.1, 0.1, 1.0), 1.0);
 
         // let radius = 10f32;
         //
@@ -193,6 +233,18 @@ impl State {
 
         let view = self.camera.get_view();
         let view: [[f32; 4]; 4] = view.into();
+
+        // move light position
+        // if let Some(light_pos) = &mut self.light_pos {
+        //     let radius = 10f32;
+        //     light_pos.x = self.now.elapsed().as_secs_f32().sin() * radius;
+        //     light_pos.z = self.now.elapsed().as_secs_f32().cos() * radius;
+
+        //     let light = &mut self.object3ds[0];
+        //     light.reset();
+        //     light.translate(*light_pos);
+        //     light.scale(cgmath::vec3(0.2, 0.2, 0.2));
+        // }
 
 
         let params = glium::DrawParameters {
@@ -204,7 +256,16 @@ impl State {
             .. Default::default()
         };
 
+        // change light color
+        self.change_light_color();
 
+        // draw light
+        if let Some(light) = &self.light {
+            let light_obj = light.get_object();
+            self.draw_object3d(&mut frame, light_obj, &view, &params);
+        }
+
+        // draw objects
         for object_3d in &self.object3ds {
             self.draw_object3d(&mut frame, object_3d, &view, &params);
         }
@@ -255,22 +316,41 @@ impl State {
         //     self.object3ds.push(cube);
         // }
 
-        let mut light = Object3d::new(Object3dKind::Sphere);
-        light.shader_name = "light".to_string();
+        // let mut light = Object3d::new(Object3dKind::Sphere);
+        // light.shader_name = "light".to_string();
 
-        light.translate(cgmath::vec3(1.2, 1.0, 2.0));
-        light.scale(cgmath::vec3(0.2, 0.2, 0.2));
+        // light.translate(self.light_pos.unwrap());
+        // light.scale(cgmath::vec3(0.2, 0.2, 0.2));
 
-        self.object3ds.push(light);
+        // self.object3ds.push(light);
 
         let mut cube = Object3d::new(Object3dKind::Cube);
         cube.shader_name = "color".to_string();
         cube.color = Some([1.0, 0.5, 0.31]);
+        let material = Material {
+            ambient: [1.0, 0.5, 0.31],
+            diffuse: [1.0, 0.5, 0.31],
+            specular: [0.5, 0.5, 0.5],
+            shininess: 32.0,
+        };
+        cube.material = Some(material);
 
         // println!("{:?}", cube.color.as_ref().unwrap());
 
         self.object3ds.push(cube);
 
+
+    }
+
+    pub fn change_light_color(&mut self) {
+        if let Some(light) = &mut self.light {
+            
+            let time_rate = [2.0, 0.7, 1.3];
+            let light_color = time_rate.map(|x| (self.now.elapsed().as_secs_f32() * x).sin());
+            
+            light.diffuse = light_color.map(|x| x * 0.5);
+            light.ambient = light.diffuse.map(|x| x * 0.2);
+        }
 
     }
 }
@@ -284,7 +364,7 @@ impl App {
         use glium::winit::keyboard::{PhysicalKey, KeyCode};
 
         if let Some(state) = &mut self.state {
-            let speed = state.delta_time * 1.5;
+            let speed = state.delta_time * 0.4;
             if event.state == ElementState::Pressed {
                 match &event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
@@ -311,17 +391,19 @@ impl App {
                 return;
             }
 
-            let x_offset = -delta.0 as f32;
+            let x_offset = delta.0 as f32;
             let y_offset = -delta.1 as f32;
 
             let sensitivity = 0.08f32;
-            let yew = x_offset * sensitivity;
-            let mut pitch = y_offset * sensitivity;
-            pitch = pitch.min(89.0);
-            pitch = pitch.max(-89.0);
+            // let yew = x_offset * sensitivity;
+            // let mut pitch = y_offset * sensitivity;
+            // pitch = pitch.min(89.0);
+            // pitch = pitch.max(-89.0);
 
-            let euler_angle = cgmath::Euler::new(cgmath::Deg(pitch), cgmath::Deg(yew), cgmath::Deg(0.0));
-            state.camera.rotate(euler_angle);
+            // let euler_angle = cgmath::Euler::new(cgmath::Deg(pitch), cgmath::Deg(yew), cgmath::Deg(0.0));
+            // state.camera.rotate(euler_angle);
+
+            state.camera.rotate(x_offset * sensitivity, y_offset * sensitivity);
 
         }
     }

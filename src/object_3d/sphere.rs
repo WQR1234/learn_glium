@@ -21,9 +21,13 @@ fn generate_sphere_vertices_indices(radius: f32, latitude_count: usize, longitud
             let y = radius * cos_theta;
             let z = radius * sin_theta * sin_phi;
 
+            let nx = x / radius;
+            let ny = y / radius;
+            let nz = z / radius;
+
             let u = lon as f32 / longitude_count as f32;
 
-            vertices.push(Vertex {position: [x, y, z], tex_coords: [u, v]});
+            vertices.push(Vertex {position: [x, y, z], normal: [nx, ny, nz], tex_coords: [u, v]});
 
         }
     }

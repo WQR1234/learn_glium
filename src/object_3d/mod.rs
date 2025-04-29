@@ -1,15 +1,17 @@
 pub mod cube;
 pub mod sphere;
+pub mod light;
 
 use cgmath::{Matrix4, Rad, SquareMatrix, Vector3};
-use glium::implement_vertex;
+use glium::{implement_vertex};
 
 #[derive(Copy, Clone)]
 pub struct Vertex {
     pub(crate) position: [f32; 3],
+    pub(crate) normal: [f32; 3],
     pub(crate) tex_coords: [f32; 2],
 }
-implement_vertex!(Vertex, position, tex_coords);
+implement_vertex!(Vertex, position,normal, tex_coords);
 
 
 pub enum Object3dKind {
@@ -18,6 +20,12 @@ pub enum Object3dKind {
 }
 
 
+pub struct Material {
+    pub(crate) ambient: [f32; 3],
+    pub diffuse: [f32; 3],
+    pub specular: [f32; 3],
+    pub shininess: f32,
+}
 
 pub struct Object3d {
     pub model: Matrix4<f32>,
@@ -28,7 +36,9 @@ pub struct Object3d {
 
     pub texture_id: Option<usize>,
 
-    pub color: Option<[f32; 3]>
+    pub color: Option<[f32; 3]>,
+
+    pub material: Option<Material>,
 
 }
 
@@ -39,7 +49,8 @@ impl Object3d {
             kind,
             shader_name: "".to_string(),
             texture_id: None,
-            color: None
+            color: None,
+            material: None,
         }
     }
 
@@ -56,6 +67,10 @@ impl Object3d {
     pub fn scale(&mut self, vec: Vector3<f32>) {
         let scale = Matrix4::from_nonuniform_scale(vec.x, vec.y, vec.z);
         self.model = self.model * scale;
+    }
+
+    pub fn reset(&mut self) {
+        self.model = Matrix4::identity();
     }
 }
 
