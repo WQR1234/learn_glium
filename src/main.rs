@@ -9,7 +9,6 @@ use glium::{Display, Surface};
 use glium::glutin::surface::WindowSurface;
 use glium::winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use glium::uniforms::{DynamicUniforms};
-use object_3d::light;
 
 
 use crate::object_3d::{Object3d, Object3dKind, Vertex, Material, light::Light};
