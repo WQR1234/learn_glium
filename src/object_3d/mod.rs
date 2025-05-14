@@ -21,9 +21,9 @@ pub enum Object3dKind {
 
 
 pub struct Material {
-    pub(crate) ambient: [f32; 3],
-    pub diffuse: [f32; 3],
-    pub specular: [f32; 3],
+    // pub(crate) ambient: [f32; 3],
+    pub diffuse: usize,  // texture id
+    pub specular: usize,  // texture id
     pub shininess: f32,
 }
 

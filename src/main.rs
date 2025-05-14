@@ -2,7 +2,7 @@ extern crate core;
 
 mod object_3d;
 mod camera;
-
+mod my_simple_window_builders;
 
 use cgmath::InnerSpace;
 use glium::{Display, Surface};
@@ -11,7 +11,7 @@ use glium::winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use glium::uniforms::{DynamicUniforms};
 
 
-use crate::object_3d::{Object3d, Object3dKind, Vertex, Material, light::Light};
+use crate::object_3d::{Object3d, Object3dKind, Vertex, Material, light::Light, light::DirectionalLight};
 use crate::object_3d::cube::CUBE_SHAPE;
 use crate::object_3d::sphere::SPHERE_SHAPE_INDEX;
 use crate::camera::Camera;
@@ -23,7 +23,7 @@ use glium::winit::window::{Window, WindowId};
 
 use std::collections::HashMap;
 use std::{fs, io};
-
+use crate::my_simple_window_builders::MySimpleWindowBuilder;
 
 struct GLBuffer {
     vertex_buffer: glium::VertexBuffer<Vertex>,
@@ -62,13 +62,15 @@ struct State {
     // light_color: Option<[f32; 3]>,
 
     light: Option<Light>,
+    directional_light: Option<DirectionalLight>
 }
 
 impl State {
 
     fn new(event_loop: &ActiveEventLoop) -> Self {
-        let (window, display) = glium::backend::glutin::SimpleWindowBuilder::new()
+        let (window, display) = MySimpleWindowBuilder::new()
             .with_title("test01")
+            .with_vsync(true)
             .build(event_loop);
 
         let _ = window.request_inner_size(LogicalSize::new(800.0, 600.0));   // resize window
@@ -106,6 +108,7 @@ impl State {
             // light_pos: None,
             // light_color: None,
             light: None,
+            directional_light: None
         }
     }
 
@@ -127,20 +130,27 @@ impl State {
 
         // shader
         // self.add_shader("texture").unwrap();
-        self.add_shader("color").unwrap();
+        // self.add_shader("color").unwrap();
         self.add_shader("light").unwrap();
+        self.add_shader("light_map").unwrap();
 
         // texture
-        self.textures.push(self.generate_texture("container.jpg"));
+        self.textures.push(self.generate_texture("container2.png"));
+        self.textures.push(self.generate_texture("container2_specular.png"));
 
         // light
         // self.light_color = Some([1.0, 1.0, 1.0]);
         // self.light_pos = Some(cgmath::vec3(1.2, 1.0, 2.0));
-        let light_pos = [1.2, 1.0, 2.0];
-        let light_ambient = [0.2, 0.2, 0.2];
-        let light_diffuse = [0.5, 0.5, 0.5];
-        let light_specular = [1.0, 1.0, 1.0];
-        self.light = Some(Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere));
+
+        // let light_pos = [1.2, 1.0, 2.0];
+        let light_ambient = [0.2, 0.2, 0.2f32];
+        let light_diffuse = [0.5, 0.5, 0.5f32];
+        let light_specular = [1.0, 1.0, 1.0f32];
+        // self.light = Some(Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere));
+
+        // directional light
+        let light_dir = [-0.2, -1.0, -0.3f32];
+        self.directional_light = Some(DirectionalLight::new(light_dir, light_ambient, light_diffuse, light_specular));
 
         // add cubes
         self.add_objects();
@@ -173,6 +183,13 @@ impl State {
             uniforms.add("light.diffuse", &light.diffuse);
             uniforms.add("light.specular", &light.specular);
         }
+
+        if let Some(light) = &self.directional_light {
+            uniforms.add("light.direction", &light.direction);
+            uniforms.add("light.ambient", &light.ambient);
+            uniforms.add("light.diffuse", &light.diffuse);
+            uniforms.add("light.specular", &light.specular);
+        }
         
 
         if let Some(texture_id) = object3d.texture_id {
@@ -185,9 +202,9 @@ impl State {
         }
 
         if let Some(material) = &object3d.material {
-            uniforms.add("material.ambient", &material.ambient);
-            uniforms.add("material.diffuse", &material.diffuse);
-            uniforms.add("material.specular", &material.specular);
+            // uniforms.add("material.ambient", &material.ambient);
+            uniforms.add("material.diffuse", &self.textures[material.diffuse]);
+            uniforms.add("material.specular", &self.textures[material.specular]);
             uniforms.add("material.shininess", &material.shininess);    
 
         }
@@ -256,7 +273,7 @@ impl State {
         };
 
         // change light color
-        self.change_light_color();
+        // self.change_light_color();
 
         // draw light
         if let Some(light) = &self.light {
@@ -291,52 +308,49 @@ impl State {
     }
 
     fn add_objects(&mut self) {
-        // let cube_positions = vec![
-        //     cgmath::vec3(0., 0., 0f32),
-        //     cgmath::vec3(2., 5., -15.),
-        //     cgmath::vec3(-1.5, -2.2, -2.5),
-        //     cgmath::vec3(-3.8, -2.0, -12.3),
-        //     cgmath::vec3(2.4, -0.4, -3.5),
-        //     cgmath::vec3(-1.7,  3.0, -7.5),
-        //     cgmath::vec3( 1.3, -2.0, -2.5),
-        //     cgmath::vec3( 1.5,  2.0, -2.5),
-        //     cgmath::vec3(1.5,  0.2, -1.5),
-        //     cgmath::vec3( -1.3,  1.0, -1.5),
-        // ];
-        //
-        // for (i, &cube_pos) in cube_positions.iter().enumerate() {
-        //     let mut cube = Object3d::new(Object3dKind::Sphere);
-        //     cube.shader_name = "texture".to_string();
-        //     cube.texture_id = Some(0);
-        //     cube.translate(cube_pos);
-        //     let angle = 20.0 * i as f32;
-        //     cube.rotate(cgmath::vec3(1.0, 0.3, 0.5).normalize(), cgmath::Deg(angle));
-        //
-        //     self.object3ds.push(cube);
-        // }
 
-        // let mut light = Object3d::new(Object3dKind::Sphere);
-        // light.shader_name = "light".to_string();
+        let cube_positions = vec![
+            cgmath::vec3(0., 0., 0f32),
+            cgmath::vec3(2., 5., -15.),
+            cgmath::vec3(-1.5, -2.2, -2.5),
+            cgmath::vec3(-3.8, -2.0, -12.3),
+            cgmath::vec3(2.4, -0.4, -3.5),
+            cgmath::vec3(-1.7,  3.0, -7.5),
+            cgmath::vec3( 1.3, -2.0, -2.5),
+            cgmath::vec3( 1.5,  2.0, -2.5),
+            cgmath::vec3(1.5,  0.2, -1.5),
+            cgmath::vec3( -1.3,  1.0, -1.5),
+        ];
 
-        // light.translate(self.light_pos.unwrap());
-        // light.scale(cgmath::vec3(0.2, 0.2, 0.2));
+        for (i, &cube_pos) in cube_positions.iter().enumerate() {
+            let mut cube = Object3d::new(Object3dKind::Cube);
+            cube.shader_name = "light_map".to_string();
+            let material = Material {
+                diffuse: 0,
+                specular: 1,
+                shininess: 32.0,
+            };
+            cube.material = Some(material);
 
-        // self.object3ds.push(light);
+            cube.translate(cube_pos);
+            let angle = 20.0 * i as f32;
+            cube.rotate(cgmath::vec3(1.0, 0.3, 0.5).normalize(), cgmath::Deg(angle));
 
-        let mut cube = Object3d::new(Object3dKind::Cube);
-        cube.shader_name = "color".to_string();
-        cube.color = Some([1.0, 0.5, 0.31]);
-        let material = Material {
-            ambient: [1.0, 0.5, 0.31],
-            diffuse: [1.0, 0.5, 0.31],
-            specular: [0.5, 0.5, 0.5],
-            shininess: 32.0,
-        };
-        cube.material = Some(material);
+            self.object3ds.push(cube);
+        }
 
-        // println!("{:?}", cube.color.as_ref().unwrap());
+        // let mut cube = Object3d::new(Object3dKind::Cube);
+        // cube.shader_name = "light_map".to_string();
+        // cube.color = Some([1.0, 0.5, 0.31]);
+        // let material = Material {
+        //     ambient: [1.0, 0.5, 0.31],
+        //     diffuse: 0,
+        //     specular: 1,
+        //     shininess: 32.0,
+        // };
+        // cube.material = Some(material);
 
-        self.object3ds.push(cube);
+        // self.object3ds.push(cube);
 
 
     }
@@ -363,7 +377,7 @@ impl App {
         use glium::winit::keyboard::{PhysicalKey, KeyCode};
 
         if let Some(state) = &mut self.state {
-            let speed = state.delta_time * 0.4;
+            let speed = state.delta_time * 0.04;
             if event.state == ElementState::Pressed {
                 match &event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {

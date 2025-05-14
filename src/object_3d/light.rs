@@ -54,3 +54,22 @@ impl Light {
 
     
 }
+
+pub struct DirectionalLight {
+    pub direction: [f32; 3],
+
+    pub ambient: [f32; 3],
+    pub diffuse: [f32; 3],
+    pub specular: [f32; 3],
+}
+
+impl DirectionalLight {
+    pub fn new(direction: [f32; 3], ambient: [f32; 3], diffuse: [f32; 3], specular: [f32; 3]) -> DirectionalLight {
+        Self {
+            direction,
+            ambient,
+            diffuse,
+            specular
+        }
+    }
+}
