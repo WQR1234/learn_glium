@@ -19,12 +19,16 @@ struct Material {
 uniform Material material;
 
 struct Light {
-    // vec3 position;
-    vec3 direction;
+    vec3 position;
+    // vec3 direction;
 
     vec3 ambient;
     vec3 diffuse;
     vec3 specular;
+
+    float constant;
+    float linear;
+    float quadratic;
 };
 
 uniform Light light;
@@ -37,8 +41,8 @@ void main() {
 
     // 漫反射光
     vec3 norm = normalize(Normal);
-    // vec3 lightDir = normalize(light.position - FragPos);
-    vec3 lightDir = normalize(-light.direction);
+    vec3 lightDir = normalize(light.position - FragPos);
+    // vec3 lightDir = normalize(-light.direction);
 
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
@@ -50,8 +54,12 @@ void main() {
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
 
+    // 点光源衰减
+    float dis = length(FragPos-light.position);
+    float attenuation = 1.0 / (light.constant + light.linear * dis + light.quadratic * dis * dis);
+
     // 冯氏光照模型
-    vec3 result = ambient + diffuse + specular;
+    vec3 result = attenuation * (ambient + diffuse + specular);
     FragColor = vec4(result, 1.0);
 
     // FragColor = vec4(lightColor * objectColor, 1.0);

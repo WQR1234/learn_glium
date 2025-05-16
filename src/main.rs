@@ -11,7 +11,8 @@ use glium::winit::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 use glium::uniforms::{DynamicUniforms};
 
 
-use crate::object_3d::{Object3d, Object3dKind, Vertex, Material, light::Light, light::DirectionalLight};
+use crate::object_3d::{Object3d, Object3dKind, Vertex, Material};
+use crate::object_3d::light::{Light, DirectionalLight, PointLight};
 use crate::object_3d::cube::CUBE_SHAPE;
 use crate::object_3d::sphere::SPHERE_SHAPE_INDEX;
 use crate::camera::Camera;
@@ -62,7 +63,8 @@ struct State {
     // light_color: Option<[f32; 3]>,
 
     light: Option<Light>,
-    directional_light: Option<DirectionalLight>
+    directional_light: Option<DirectionalLight>,
+    point_light: Option<PointLight>,
 }
 
 impl State {
@@ -108,7 +110,8 @@ impl State {
             // light_pos: None,
             // light_color: None,
             light: None,
-            directional_light: None
+            directional_light: None,
+            point_light: None,
         }
     }
 
@@ -142,15 +145,24 @@ impl State {
         // self.light_color = Some([1.0, 1.0, 1.0]);
         // self.light_pos = Some(cgmath::vec3(1.2, 1.0, 2.0));
 
-        // let light_pos = [1.2, 1.0, 2.0];
+        let light_pos = [1.2, 1.0, 2.0];
         let light_ambient = [0.2, 0.2, 0.2f32];
         let light_diffuse = [0.5, 0.5, 0.5f32];
         let light_specular = [1.0, 1.0, 1.0f32];
         // self.light = Some(Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere));
 
         // directional light
-        let light_dir = [-0.2, -1.0, -0.3f32];
-        self.directional_light = Some(DirectionalLight::new(light_dir, light_ambient, light_diffuse, light_specular));
+        // let light_dir = [-0.2, -1.0, -0.3f32];
+        // self.directional_light = Some(DirectionalLight::new(light_dir, light_ambient, light_diffuse, light_specular));
+
+        // point light
+        let light = Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere);
+        self.point_light = Some(PointLight {
+            light,
+            constant: 1.0,
+            linear: 0.09,
+            quadratic: 0.032,
+        });
 
         // add cubes
         self.add_objects();
@@ -189,6 +201,17 @@ impl State {
             uniforms.add("light.ambient", &light.ambient);
             uniforms.add("light.diffuse", &light.diffuse);
             uniforms.add("light.specular", &light.specular);
+        }
+
+        if let Some(point_light) = &self.point_light {
+            uniforms.add("light.position", point_light.light.get_position());
+            uniforms.add("light.ambient", &point_light.light.ambient);
+            uniforms.add("light.diffuse", &point_light.light.diffuse);
+            uniforms.add("light.specular", &point_light.light.specular);
+
+            uniforms.add( "light.constant", &point_light.constant);
+            uniforms.add("light.linear", &point_light.linear);
+            uniforms.add("light.quadratic", &point_light.quadratic);
         }
         
 
@@ -278,6 +301,12 @@ impl State {
         // draw light
         if let Some(light) = &self.light {
             let light_obj = light.get_object();
+            self.draw_object3d(&mut frame, light_obj, &view, &params);
+        }
+
+        // draw point light
+        if let Some(point_light) = &self.point_light {
+            let light_obj = point_light.light.get_object();
             self.draw_object3d(&mut frame, light_obj, &view, &params);
         }
 

@@ -73,3 +73,11 @@ impl DirectionalLight {
         }
     }
 }
+
+pub struct PointLight {
+    pub light: Light,
+
+    pub constant: f32,
+    pub linear: f32,
+    pub quadratic: f32,
+}
