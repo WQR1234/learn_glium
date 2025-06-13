@@ -14,13 +14,15 @@ struct Material {
     sampler2D diffuse;
     sampler2D specular;
     float shininess;
-}; 
+};
 
 uniform Material material;
 
 struct Light {
     vec3 position;
-    // vec3 direction;
+    vec3 direction;
+    float cutOff;
+    float outerCutOff;
 
     vec3 ambient;
     vec3 diffuse;
@@ -37,15 +39,20 @@ void main() {
     // 环境光
     // float ambientStrength = 0.1;
     // vec3 ambient = light.ambient * material.ambient;
+    vec3 lightDir = normalize(light.position - FragPos);
+    float theta = dot(lightDir, normalize(-light.direction));
+    float epsilon = light.cutOff - light.outerCutOff;
+    float intensity = clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
+
     vec3 ambient = light.ambient * vec3(texture(material.diffuse, TexCoords));
 
     // 漫反射光
     vec3 norm = normalize(Normal);
-    vec3 lightDir = normalize(light.position - FragPos);
     // vec3 lightDir = normalize(-light.direction);
 
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = light.diffuse * diff * vec3(texture(material.diffuse, TexCoords));
+    diffuse *= intensity;
 
     // 镜面反射光
     // float specularStrength = 0.5;
@@ -53,9 +60,10 @@ void main() {
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
+    specular *= intensity;
 
     // 点光源衰减
-    float dis = length(FragPos-light.position);
+    float dis = length(FragPos - light.position);
     float attenuation = 1.0 / (light.constant + light.linear * dis + light.quadratic * dis * dis);
 
     // 冯氏光照模型

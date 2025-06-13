@@ -12,7 +12,7 @@ use glium::uniforms::{DynamicUniforms};
 
 
 use crate::object_3d::{Object3d, Object3dKind, Vertex, Material};
-use crate::object_3d::light::{Light, DirectionalLight, PointLight};
+use crate::object_3d::light::{Light, DirectionalLight, PointLight, FlashLight};
 use crate::object_3d::cube::CUBE_SHAPE;
 use crate::object_3d::sphere::SPHERE_SHAPE_INDEX;
 use crate::camera::Camera;
@@ -24,6 +24,7 @@ use glium::winit::window::{Window, WindowId};
 
 use std::collections::HashMap;
 use std::{fs, io};
+use cgmath::num_traits::Float;
 use crate::my_simple_window_builders::MySimpleWindowBuilder;
 
 struct GLBuffer {
@@ -65,6 +66,7 @@ struct State {
     light: Option<Light>,
     directional_light: Option<DirectionalLight>,
     point_light: Option<PointLight>,
+    flash_light: Option<FlashLight>,
 }
 
 impl State {
@@ -112,6 +114,7 @@ impl State {
             light: None,
             directional_light: None,
             point_light: None,
+            flash_light: None,
         }
     }
 
@@ -146,8 +149,8 @@ impl State {
         // self.light_pos = Some(cgmath::vec3(1.2, 1.0, 2.0));
 
         let light_pos = [1.2, 1.0, 2.0];
-        let light_ambient = [0.2, 0.2, 0.2f32];
-        let light_diffuse = [0.5, 0.5, 0.5f32];
+        let light_ambient = [0.1, 0.1, 0.1f32];
+        let light_diffuse = [0.8, 0.8, 0.8f32];
         let light_specular = [1.0, 1.0, 1.0f32];
         // self.light = Some(Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere));
 
@@ -156,9 +159,23 @@ impl State {
         // self.directional_light = Some(DirectionalLight::new(light_dir, light_ambient, light_diffuse, light_specular));
 
         // point light
-        let light = Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere);
-        self.point_light = Some(PointLight {
-            light,
+        // let light = Light::new(light_pos, light_ambient, light_diffuse, light_specular, Object3dKind::Sphere);
+        // self.point_light = Some(PointLight {
+        //     light,
+        //     constant: 1.0,
+        //     linear: 0.09,
+        //     quadratic: 0.032,
+        // });
+
+        // flashlight
+        self.flash_light = Some(FlashLight {
+            position: self.camera.pos.into(),
+            direction: self.camera.front.into(),
+            cut_off: 12.5.to_radians().cos(),
+            outer_cut_off: 17.5.to_radians().cos(),
+            ambient: light_ambient,
+            diffuse: light_diffuse,
+            specular: light_specular,
             constant: 1.0,
             linear: 0.09,
             quadratic: 0.032,
@@ -232,6 +249,11 @@ impl State {
 
         }
 
+        if let Some(flashlight) = &self.flash_light {
+            // println!("{:?}, {:?}", flashlight.position, flashlight.direction);
+            flashlight.set_uniforms(&mut uniforms);
+        }
+
         uniforms
     }
 
@@ -272,6 +294,11 @@ impl State {
 
         let view = self.camera.get_view();
         let view: [[f32; 4]; 4] = view.into();
+
+        if let Some(flashlight) = &mut self.flash_light {
+            flashlight.position = self.camera.pos.into();
+            flashlight.direction = self.camera.front.into();
+        }
 
         // move light position
         // if let Some(light_pos) = &mut self.light_pos {
